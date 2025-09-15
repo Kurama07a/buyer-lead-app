@@ -1,0 +1,134 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String?
+  password  String
+  role      UserRole @default(USER)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  createdLeads Lead[] @relation("CreatedBy")
+  updatedLeads Lead[] @relation("UpdatedBy")
+
+  @@map("users")
+}
+
+model Lead {
+  id                    String     @id @default(cuid())
+  firstName             String
+  lastName              String
+  email                 String
+  phone                 String?
+  address               String?
+  city                  String?
+  state                 String?
+  zipCode               String?
+  propertyType          PropertyType
+  propertyAddress       String
+  propertyCity          String
+  propertyState         String
+  propertyZipCode       String
+  estimatedValue        Float?
+  desiredTimeframe      String?
+  motivationForSelling  String?
+  currentMortgageBalance Float?
+  propertyCondition     PropertyCondition?
+  additionalNotes       String?
+  leadSource            String?
+  status                LeadStatus @default(NEW)
+  priority              Priority   @default(MEDIUM)
+  
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Relations
+  createdBy   User   @relation("CreatedBy", fields: [createdById], references: [id])
+  createdById String
+  updatedBy   User?  @relation("UpdatedBy", fields: [updatedById], references: [id])
+  updatedById String?
+  
+  // History tracking
+  history LeadHistory[]
+
+  @@map("leads")
+}
+
+model LeadHistory {
+  id        String   @id @default(cuid())
+  leadId    String
+  field     String
+  oldValue  String?
+  newValue  String?
+  action    HistoryAction
+  timestamp DateTime @default(now())
+  userId    String
+  
+  // Relations
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_history")
+}
+
+enum UserRole {
+  USER
+  ADMIN
+}
+
+enum PropertyType {
+  SINGLE_FAMILY
+  MULTI_FAMILY
+  CONDO
+  TOWNHOUSE
+  LAND
+  COMMERCIAL
+  OTHER
+}
+
+enum PropertyCondition {
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+  NEEDS_REPAIR
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL_SENT
+  NEGOTIATING
+  UNDER_CONTRACT
+  CLOSED
+  LOST
+  ARCHIVED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum HistoryAction {
+  CREATED
+  UPDATED
+  STATUS_CHANGED
+  ASSIGNED
+  NOTE_ADDED
+}
