@@ -105,10 +105,10 @@ export async function getServerUser(request?: NextRequest): Promise<AuthUser | n
     let token: string | null = null
 
     if (request) {
-      // For API routes or middleware
+      
       token = request.cookies.get("auth-token")?.value ?? request.headers.get("authorization")?.replace("Bearer ", "") ?? null
     } else {
-      // For server components, we can't read headers directly. Use client-side auth instead.
+    
       return null
     }
 
