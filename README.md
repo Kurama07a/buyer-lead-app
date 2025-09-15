@@ -359,6 +359,168 @@ npx prisma migrate reset
 npx prisma generate
 ```
 
+## 🏗️ Architecture & Design Notes
+
+### Authentication & Authorization Architecture
+
+#### **Server-Side Authentication (API Routes)**
+- **JWT Token Validation**: All API routes use `withAuth` middleware for token verification
+- **Ownership Enforcement**: Database queries include `createdById` filters to ensure users only access their own data
+- **Role-Based Access**: `requireAdmin` middleware for admin-only operations
+- **Token Sources**: Supports both cookies (`auth-token`) and Authorization headers
+
+#### **Client-Side Authentication**
+- **AuthProvider Context**: Manages global authentication state using React Context
+- **localStorage Token Management**: JWT tokens stored client-side for persistence
+- **Route Protection**: `AuthGuard` component wraps protected pages for client-side route protection
+- **Automatic Token Refresh**: `/api/auth/me` endpoint validates tokens on app initialization
+
+#### **Hybrid SSR/Client Strategy**
+- **Server Components**: Dashboard pages use server components for SEO and initial data loading
+- **Client Components**: Interactive forms and tables marked with `"use client"` directive
+- **API Route Protection**: All data mutations happen through protected API routes
+- **Middleware Routing**: Next.js middleware handles automatic redirects based on auth state
+
+### Data Validation Strategy
+
+#### **Client-Side Validation**
+- **React Hook Form**: Form validation using react-hook-form for immediate feedback
+- **TypeScript Interfaces**: Strong typing for all data structures and API responses
+- **UI Validation**: Input components with built-in validation states and error messaging
+
+#### **Server-Side Validation**
+- **API Route Validation**: Manual validation in API routes before database operations
+- **Prisma Schema Constraints**: Database-level validation through Prisma schema
+- **Required Fields**: Server enforces required fields before data persistence
+- **Type Safety**: TypeScript ensures type consistency across client and server
+
+#### **Data Sanitization**
+- **CSV Processing**: Custom CSV parser with field mapping and validation
+- **SQL Injection Prevention**: Prisma ORM prevents SQL injection through parameterized queries
+- **XSS Protection**: Next.js built-in XSS protection for rendered content
+
+### Ownership & Access Control
+
+#### **Data Ownership Model**
+- **User-Scoped Data**: All leads are associated with `createdById` for ownership tracking
+- **Implicit Filtering**: API routes automatically filter data by authenticated user
+- **No Cross-User Access**: Users cannot access or modify other users' leads
+- **Audit Trail**: `updatedById` tracks who made changes for accountability
+
+#### **Permission Levels**
+```typescript
+// User Permissions
+USER: {
+  - Create own leads
+  - Read own leads
+  - Update own leads
+  - Delete own leads
+  - Import/Export own data
+}
+
+// Admin Permissions (future enhancement)
+ADMIN: {
+  - All USER permissions
+  - Access all users' data
+  - User management
+  - System-wide analytics
+}
+```
+
+#### **API Security Pattern**
+```typescript
+// Example: All API routes follow this pattern
+export const GET = withAuth(async (req: NextRequest, user: any) => {
+  // 1. Authentication verified by withAuth
+  // 2. User object passed from token
+  // 3. Database queries scoped to user.id
+  const leads = await prisma.lead.findMany({
+    where: { createdById: user.id }, // Ownership enforcement
+    // ... rest of query
+  })
+})
+```
+
+### State Management Architecture
+
+#### **Server State**
+- **Database as Source of Truth**: PostgreSQL with Prisma ORM
+- **Real-time Updates**: API routes return fresh data on mutations
+- **Optimistic Updates**: Client updates immediately, with server confirmation
+
+#### **Client State**
+- **React Context**: Authentication state managed globally
+- **Component State**: Form state and UI interactions handled locally
+- **URL State**: Search filters and pagination managed through URL parameters
+- **localStorage**: JWT token persistence across browser sessions
+
+#### **Data Flow Pattern**
+```
+1. User Action (Client) 
+   ↓
+2. Form Validation (Client)
+   ↓  
+3. API Request (Client → Server)
+   ↓
+4. Authentication Check (Server)
+   ↓
+5. Data Validation (Server)
+   ↓
+6. Database Operation (Server)
+   ↓
+7. Response (Server → Client)
+   ↓
+8. UI Update (Client)
+```
+
+### Performance Considerations
+
+#### **Database Optimization**
+- **Pagination**: All list endpoints support pagination to handle large datasets
+- **Indexing**: Database indexes on frequently queried fields (email, status, createdAt)
+- **Connection Pooling**: Prisma connection pooling for efficient database usage
+- **Query Optimization**: Selective field loading and relationship includes
+
+#### **Client Optimization**
+- **Code Splitting**: Next.js automatic code splitting for smaller bundles
+- **Component Lazy Loading**: Dynamic imports for non-critical components
+- **Memoization**: React memo and useMemo for expensive computations
+- **Debounced Search**: Search inputs debounced to reduce API calls
+
+#### **Caching Strategy**
+- **Static Generation**: Public pages use Next.js static generation
+- **API Caching**: Consider implementing Redis for frequently accessed data
+- **Browser Caching**: Static assets cached with appropriate headers
+- **Database Query Caching**: Prisma query caching for repeated operations
+
+### Error Handling & Logging
+
+#### **Client-Side Error Handling**
+- **Toast Notifications**: User-friendly error messages via toast system
+- **Form Validation**: Real-time validation with clear error states
+- **Graceful Degradation**: UI remains functional when APIs are unavailable
+- **Loading States**: Clear loading indicators for async operations
+
+#### **Server-Side Error Handling**
+- **Structured Responses**: Consistent error response format across all APIs
+- **Error Logging**: Console logging for debugging (production should use proper logging service)
+- **Input Validation**: Comprehensive validation before database operations
+- **Transaction Safety**: Database transactions for multi-step operations
+
+### Security Best Practices
+
+#### **Authentication Security**
+- **JWT Expiration**: 7-day token expiration for security/usability balance
+- **Secure Password Hashing**: bcrypt with salt rounds of 12
+- **Token Validation**: Server-side token verification on every protected request
+- **Session Management**: Automatic logout on token expiration
+
+#### **Data Protection**
+- **Input Sanitization**: All user inputs validated and sanitized
+- **SQL Injection Prevention**: Prisma ORM parameterized queries
+- **HTTPS Enforcement**: Production deployment requires HTTPS
+- **Environment Variables**: Sensitive data stored in environment variables
+
 ### Project Structure
 
 ```
